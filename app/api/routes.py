@@ -1,9 +1,18 @@
+import os
 import requests
 import urllib3
-from fastapi import APIRouter
-from sqlalchemy.orm import Session
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
+
+from fastapi import APIRouter
+from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
+
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.lib.pagesizes import A4
+
 from app.database.db import SessionLocal
 from app.models.compliance_model import ComplianceResult
 
@@ -26,7 +35,6 @@ def check_compliance(data: dict):
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
 
-        # Fetch homepage
         response = requests.get(
             website_url,
             headers=headers,
@@ -40,17 +48,14 @@ def check_compliance(data: dict):
 
         combined_content = homepage_content.lower()
 
-        # ==========================================
-        # Detect Privacy Policy Page
-        # ==========================================
+        # Detect privacy link
         privacy_link = None
-
         for link in soup.find_all("a", href=True):
             if "privacy" in link.text.lower() or "privacy" in link["href"].lower():
                 privacy_link = urljoin(website_url, link["href"])
                 break
 
-        # Fetch privacy policy page if found
+        # Fetch privacy page
         if privacy_link:
             try:
                 privacy_response = requests.get(
@@ -67,26 +72,18 @@ def check_compliance(data: dict):
     except Exception as e:
         return {"error": f"Unable to fetch website: {str(e)}"}
 
-    # =========================================================
-    # DPDP Act 2023 Section-Based Compliance Detection
-    # =========================================================
+    # =============================
+    # DPDP Section Checks
+    # =============================
 
-    section_5_notice = "privacy" in combined_content or "notice" in combined_content
+    section_5_notice = "privacy" in combined_content
     section_6_consent = "consent" in combined_content
-    section_7_lawful_use = "purpose" in combined_content or "lawful" in combined_content
-    section_8_obligations = "data protection" in combined_content or "safeguard" in combined_content
+    section_7_lawful_use = "purpose" in combined_content
+    section_8_obligations = "data protection" in combined_content
     section_9_retention = "retention" in combined_content
-    section_13_grievance = "grievance" in combined_content or "complaint" in combined_content
-    section_10_dpo = "data protection officer" in combined_content or "dpo" in combined_content
-    data_principal_rights = (
-        "right" in combined_content
-        or "access" in combined_content
-        or "correction" in combined_content
-    )
-
-    # =========================================================
-    # Score Calculation (100 Max)
-    # =========================================================
+    section_13_grievance = "grievance" in combined_content
+    section_10_dpo = "data protection officer" in combined_content
+    data_principal_rights = "right" in combined_content
 
     score = 0
 
@@ -107,10 +104,6 @@ def check_compliance(data: dict):
     if data_principal_rights:
         score += 10
 
-    # =========================================================
-    # Risk Level Classification
-    # =========================================================
-
     if score >= 70:
         risk_level = "Low Risk"
     elif score >= 40:
@@ -118,42 +111,23 @@ def check_compliance(data: dict):
     else:
         risk_level = "High Risk"
 
-    # =========================================================
-    # Save to Database
-    # =========================================================
-
+    # Save to DB
     db: Session = SessionLocal()
-
     new_record = ComplianceResult(
         website_url=website_url,
         compliance_percentage=score,
         risk_level=risk_level
     )
-
     db.add(new_record)
     db.commit()
     db.refresh(new_record)
     db.close()
 
-    # =========================================================
-    # Response
-    # =========================================================
-
     return {
         "message": "Compliance check completed",
         "compliance_percentage": score,
         "risk_level": risk_level,
-        "privacy_page_detected": privacy_link if privacy_link else None,
-        "dpdp_section_analysis": {
-            "Section_5_Notice": section_5_notice,
-            "Section_6_Consent": section_6_consent,
-            "Section_7_Lawful_Use": section_7_lawful_use,
-            "Section_8_Obligations": section_8_obligations,
-            "Section_9_Data_Retention": section_9_retention,
-            "Section_10_DPO": section_10_dpo,
-            "Section_13_Grievance_Redressal": section_13_grievance,
-            "Data_Principal_Rights": data_principal_rights
-        }
+        "privacy_page_detected": privacy_link if privacy_link else None
     }
 
 
@@ -163,11 +137,9 @@ def check_compliance(data: dict):
 @router.get("/reports")
 def get_reports():
     db: Session = SessionLocal()
-    reports = (
-        db.query(ComplianceResult)
-        .order_by(ComplianceResult.created_at.desc())
-        .all()
-    )
+    reports = db.query(ComplianceResult).order_by(
+        ComplianceResult.created_at.desc()
+    ).all()
     db.close()
     return reports
 
@@ -208,3 +180,54 @@ def delete_report(report_id: int):
     db.close()
 
     return {"message": f"Report {report_id} deleted successfully"}
+
+
+# =========================================================
+# GET - Download PDF Report
+# =========================================================
+@router.get("/reports/{report_id}/download")
+def download_report(report_id: int):
+    db: Session = SessionLocal()
+    report = db.query(ComplianceResult).filter(
+        ComplianceResult.id == report_id
+    ).first()
+    db.close()
+
+    if not report:
+        return {"error": "Report not found"}
+
+    file_name = f"dpdp_report_{report_id}.pdf"
+    file_path = os.path.join(os.getcwd(), file_name)
+
+    doc = SimpleDocTemplate(file_path, pagesize=A4)
+    elements = []
+    styles = getSampleStyleSheet()
+
+    elements.append(Paragraph("DPDP Act 2023 Compliance Report", styles["Title"]))
+    elements.append(Spacer(1, 0.5 * inch))
+
+    elements.append(Paragraph(f"Website: {report.website_url}", styles["Normal"]))
+    elements.append(Spacer(1, 0.2 * inch))
+
+    elements.append(Paragraph(f"Compliance Score: {report.compliance_percentage}%", styles["Normal"]))
+    elements.append(Spacer(1, 0.2 * inch))
+
+    elements.append(Paragraph(f"Risk Level: {report.risk_level}", styles["Normal"]))
+    elements.append(Spacer(1, 0.2 * inch))
+
+    elements.append(Paragraph(f"Generated On: {report.created_at}", styles["Normal"]))
+    elements.append(Spacer(1, 0.5 * inch))
+
+    elements.append(Paragraph(
+        "This report evaluates compliance with the Digital Personal Data Protection Act 2023 "
+        "based on automated website policy analysis.",
+        styles["Normal"]
+    ))
+
+    doc.build(elements)
+
+    return FileResponse(
+        path=file_path,
+        filename=file_name,
+        media_type="application/pdf"
+    )
