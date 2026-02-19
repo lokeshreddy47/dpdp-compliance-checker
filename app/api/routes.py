@@ -34,17 +34,21 @@ def check_compliance(data: dict):
     }
 
 
-@router.get("/reports/{report_id}")
-def get_report_by_id(report_id: int):
+@router.delete("/reports/{report_id}")
+def delete_report(report_id: int):
     db: Session = SessionLocal()
 
     report = db.query(ComplianceResult).filter(
         ComplianceResult.id == report_id
     ).first()
 
-    db.close()
-
     if not report:
+        db.close()
         return {"error": "Report not found"}
 
-    return report
+    db.delete(report)
+    db.commit()
+    db.close()
+
+    return {"message": f"Report {report_id} deleted successfully"}
+
