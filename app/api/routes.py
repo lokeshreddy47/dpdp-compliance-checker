@@ -38,26 +38,40 @@ def check_compliance(data: dict):
         return {"error": f"Unable to fetch website: {str(e)}"}
 
     # ==============================
-    # Improved Scoring Logic
+    # Detailed Compliance Detection
     # ==============================
+
+    privacy_found = "privacy" in content
+    consent_found = "consent" in content
+    retention_found = "retention" in content
+    grievance_found = "grievance" in content or "complaint" in content
+    personal_data_found = "personal data" in content or "personal information" in content
+
+    # ==============================
+    # Score Calculation
+    # ==============================
+
     score = 0
 
-    if "privacy" in content:
+    if privacy_found:
         score += 25
 
-    if "consent" in content:
+    if consent_found:
         score += 20
 
-    if "retention" in content:
+    if retention_found:
         score += 20
 
-    if "grievance" in content or "complaint" in content:
+    if grievance_found:
         score += 15
 
-    if "personal data" in content or "personal information" in content:
+    if personal_data_found:
         score += 20
 
-    # Risk Level Logic
+    # ==============================
+    # Risk Level Classification
+    # ==============================
+
     if score >= 70:
         risk_level = "Low Risk"
     elif score >= 40:
@@ -65,7 +79,10 @@ def check_compliance(data: dict):
     else:
         risk_level = "High Risk"
 
+    # ==============================
     # Save to Database
+    # ==============================
+
     db: Session = SessionLocal()
 
     new_record = ComplianceResult(
@@ -79,10 +96,21 @@ def check_compliance(data: dict):
     db.refresh(new_record)
     db.close()
 
+    # ==============================
+    # Return Response
+    # ==============================
+
     return {
         "message": "Compliance check completed",
         "compliance_percentage": score,
-        "risk_level": risk_level
+        "risk_level": risk_level,
+        "details": {
+            "privacy_policy_found": privacy_found,
+            "consent_mechanism_found": consent_found,
+            "data_retention_policy_found": retention_found,
+            "grievance_mechanism_found": grievance_found,
+            "personal_data_reference_found": personal_data_found
+        }
     }
 
 
