@@ -1,23 +1,14 @@
 from fastapi import APIRouter
-from pydantic import BaseModel
-from app.services.crawler import crawl_website
-from app.services.nlp_analyzer import analyze_text
-from app.services.scoring_engine import calculate_score
+from sqlalchemy.orm import Session
+from app.database.db import SessionLocal
+from app.models.compliance_model import ComplianceResult
 
-router = APIRouter()
-
-class URLRequest(BaseModel):
-    url: str
+router = APIRouter()   # ← THIS LINE IS REQUIRED
 
 
-@router.post("/check-compliance")
-def check_compliance(request: URLRequest):
-    content = crawl_website(request.url)
-    analysis = analyze_text(content)
-    score = calculate_score(analysis)
-
-    return {
-        "website": request.url,
-        "result": score,
-        "details": analysis
-    }
+@router.get("/reports")
+def get_reports():
+    db: Session = SessionLocal()
+    reports = db.query(ComplianceResult).all()
+    db.close()
+    return reports
