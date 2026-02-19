@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, Text
 from datetime import datetime
 from app.database.db import Base
+
 
 class ComplianceResult(Base):
     __tablename__ = "compliance_results"
@@ -9,4 +10,7 @@ class ComplianceResult(Base):
     website_url = Column(String, nullable=False)
     compliance_percentage = Column(Integer)
     risk_level = Column(String)
+
+    section_analysis = Column(Text)
+
     created_at = Column(DateTime, default=datetime.utcnow)
