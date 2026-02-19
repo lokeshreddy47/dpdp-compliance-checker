@@ -1,11 +1,12 @@
 from fastapi import FastAPI
+from app.database.db import engine, Base
 from app.api.routes import router
-from app.database.db import Base, engine
-from app.models import compliance_model
 
-app = FastAPI()
-
-# Create database tables
 Base.metadata.create_all(bind=engine)
+
+app = FastAPI(
+    title="DPDP Act 2023 Compliance Checker",
+    version="3.0"
+)
 
 app.include_router(router)

@@ -1,233 +1,210 @@
-import os
-import requests
-import urllib3
-from urllib.parse import urljoin
-from bs4 import BeautifulSoup
-
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Form
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.units import inch
-from reportlab.lib.pagesizes import A4
-
-from app.database.db import SessionLocal
+from app.database.db import get_db
 from app.models.compliance_model import ComplianceResult
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+import json
+import os
+import requests
+from bs4 import BeautifulSoup
 
-# Disable SSL warnings (Development only)
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import qrcode
+
+# AI imports
+from sentence_transformers import SentenceTransformer, util
+import torch
 
 router = APIRouter()
 
+# Load AI model once
+model = SentenceTransformer("all-MiniLM-L6-v2")
 
-# =========================================================
-# POST - DPDP Compliance Check
-# =========================================================
-@router.post("/check-compliance")
-def check_compliance(data: dict):
-    website_url = data.get("website_url")
+# -----------------------------
+# Legal Requirements
+# -----------------------------
+LEGAL_REQUIREMENTS = {
+    "Consent": "The policy must clearly state that user consent is obtained before processing personal data and that consent can be withdrawn.",
+    "Data Retention": "The policy must specify how long personal data is retained and the criteria used to determine retention period.",
+    "Data Security": "The policy must describe security safeguards such as encryption or technical measures used to protect personal data.",
+    "Grievance Officer": "The policy must provide details of a grievance officer or contact mechanism for resolving complaints.",
+    "Notice": "The policy must inform users about what personal data is collected and the purpose of collection.",
+    "Third Party Sharing": "The policy must disclose whether personal data is shared with third parties or affiliates."
+}
 
-    if not website_url:
-        return {"error": "Website URL is required"}
+SECTION_WEIGHTS = {
+    "Consent": 20,
+    "Data Retention": 15,
+    "Data Security": 20,
+    "Grievance Officer": 15,
+    "Notice": 15,
+    "Third Party Sharing": 15
+}
 
+# -----------------------------
+# Fetch Policy Text
+# -----------------------------
+def fetch_text(url):
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers, timeout=10)
 
-        response = requests.get(
-            website_url,
-            headers=headers,
-            timeout=5,
-            verify=False
-        )
-        response.raise_for_status()
+        if response.status_code != 200:
+            return ""
 
-        homepage_content = response.text
-        soup = BeautifulSoup(homepage_content, "html.parser")
+        soup = BeautifulSoup(response.text, "html.parser")
 
-        combined_content = homepage_content.lower()
+        for script in soup(["script", "style"]):
+            script.extract()
 
-        # Detect privacy link
-        privacy_link = None
-        for link in soup.find_all("a", href=True):
-            if "privacy" in link.text.lower() or "privacy" in link["href"].lower():
-                privacy_link = urljoin(website_url, link["href"])
-                break
+        text = soup.get_text(separator=" ")
+        return text.lower()
 
-        # Fetch privacy page
-        if privacy_link:
-            try:
-                privacy_response = requests.get(
-                    privacy_link,
-                    headers=headers,
-                    timeout=5,
-                    verify=False
-                )
-                privacy_response.raise_for_status()
-                combined_content += privacy_response.text.lower()
-            except:
-                pass
+    except:
+        return ""
 
-    except Exception as e:
-        return {"error": f"Unable to fetch website: {str(e)}"}
 
-    # =============================
-    # DPDP Section Checks
-    # =============================
+# -----------------------------
+# AI Semantic Analyzer
+# -----------------------------
+def analyze_policy_ai(text):
 
-    section_5_notice = "privacy" in combined_content
-    section_6_consent = "consent" in combined_content
-    section_7_lawful_use = "purpose" in combined_content
-    section_8_obligations = "data protection" in combined_content
-    section_9_retention = "retention" in combined_content
-    section_13_grievance = "grievance" in combined_content
-    section_10_dpo = "data protection officer" in combined_content
-    data_principal_rights = "right" in combined_content
+    results = {}
+    total_score = 0
 
-    score = 0
+    sentences = text.split(".")
+    paragraphs = [s.strip() for s in sentences if len(s.strip()) > 40]
 
-    if section_5_notice:
-        score += 15
-    if section_6_consent:
-        score += 15
-    if section_7_lawful_use:
-        score += 10
-    if section_8_obligations:
-        score += 15
-    if section_9_retention:
-        score += 15
-    if section_13_grievance:
-        score += 10
-    if section_10_dpo:
-        score += 10
-    if data_principal_rights:
-        score += 10
+    if not paragraphs:
+        return {}, 0
 
-    if score >= 70:
-        risk_level = "Low Risk"
-    elif score >= 40:
-        risk_level = "Medium Risk"
+    paragraph_embeddings = model.encode(paragraphs, convert_to_tensor=True)
+
+    for section, requirement in LEGAL_REQUIREMENTS.items():
+
+        req_embedding = model.encode(requirement, convert_to_tensor=True)
+        similarities = util.cos_sim(req_embedding, paragraph_embeddings)[0]
+        max_similarity = torch.max(similarities).item()
+
+        weight = SECTION_WEIGHTS[section]
+
+        if max_similarity > 0.65:
+            status = "COMPLIANT"
+            total_score += weight
+        elif max_similarity > 0.45:
+            status = "PARTIAL"
+            total_score += weight * 0.5
+        else:
+            status = "NON-COMPLIANT"
+
+        results[section] = status
+
+    return results, round(total_score, 2)
+
+
+# -----------------------------
+# Main Route
+# -----------------------------
+@router.post("/check-compliance/")
+def check_compliance(
+    website: str = Form(...),
+    db: Session = Depends(get_db)
+):
+
+    if not website.startswith("http"):
+        website = "https://" + website
+
+    privacy_url = website
+
+    policy_text = fetch_text(privacy_url)
+
+    if not policy_text:
+        return {"error": "Unable to fetch privacy content."}
+
+    section_data, score = analyze_policy_ai(policy_text)
+
+    if score >= 75:
+        risk = "Low Risk"
+    elif score >= 50:
+        risk = "Medium Risk"
     else:
-        risk_level = "High Risk"
+        risk = "High Risk"
 
-    # Save to DB
-    db: Session = SessionLocal()
-    new_record = ComplianceResult(
-        website_url=website_url,
-        compliance_percentage=score,
-        risk_level=risk_level
+    compliant = list(section_data.values()).count("COMPLIANT")
+    partial = list(section_data.values()).count("PARTIAL")
+    non_compliant = list(section_data.values()).count("NON-COMPLIANT")
+
+    values = [compliant, partial, non_compliant]
+
+    if sum(values) == 0:
+        values = [0, 0, 1]
+
+    plt.figure(figsize=(4, 4))
+    plt.pie(
+        values,
+        labels=["Compliant", "Partial", "Non-Compliant"],
+        autopct="%1.1f%%"
     )
-    db.add(new_record)
+    chart_path = "chart.png"
+    plt.savefig(chart_path)
+    plt.close()
+
+    new_result = ComplianceResult(
+        website_url=website,
+        compliance_percentage=int(score),
+        risk_level=risk,
+        section_analysis=json.dumps(section_data)
+    )
+
+    db.add(new_result)
     db.commit()
-    db.refresh(new_record)
-    db.close()
+    db.refresh(new_result)
 
-    return {
-        "message": "Compliance check completed",
-        "compliance_percentage": score,
-        "risk_level": risk_level,
-        "privacy_page_detected": privacy_link if privacy_link else None
-    }
+    qr = qrcode.make(f"Report ID: {new_result.id} | Score: {score}%")
+    qr_path = "qr.png"
+    qr.save(qr_path)
 
+    file_path = f"report_{new_result.id}.pdf"
+    c = canvas.Canvas(file_path, pagesize=letter)
+    y = 750
 
-# =========================================================
-# GET - All Reports
-# =========================================================
-@router.get("/reports")
-def get_reports():
-    db: Session = SessionLocal()
-    reports = db.query(ComplianceResult).order_by(
-        ComplianceResult.created_at.desc()
-    ).all()
-    db.close()
-    return reports
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(50, y, "AI-Based DPDP Compliance Audit Report")
+    y -= 40
 
+    c.drawString(50, y, f"Privacy Policy URL: {privacy_url}")
+    y -= 20
+    c.drawString(50, y, f"Compliance Score: {score}%")
+    y -= 20
+    c.drawString(50, y, f"Risk Level: {risk}")
+    y -= 30
 
-# =========================================================
-# GET - Report by ID
-# =========================================================
-@router.get("/reports/{report_id}")
-def get_report_by_id(report_id: int):
-    db: Session = SessionLocal()
-    report = db.query(ComplianceResult).filter(
-        ComplianceResult.id == report_id
-    ).first()
-    db.close()
+    for section, status in section_data.items():
+        if status == "COMPLIANT":
+            c.setFillColor(colors.green)
+        elif status == "PARTIAL":
+            c.setFillColor(colors.orange)
+        else:
+            c.setFillColor(colors.red)
 
-    if not report:
-        return {"error": "Report not found"}
+        c.drawString(60, y, f"{section}: {status}")
+        y -= 20
 
-    return report
+    c.setFillColor(colors.black)
+    c.drawImage(chart_path, 300, 400, width=200, height=200)
 
+    c.save()
 
-# =========================================================
-# DELETE - Report by ID
-# =========================================================
-@router.delete("/reports/{report_id}")
-def delete_report(report_id: int):
-    db: Session = SessionLocal()
-    report = db.query(ComplianceResult).filter(
-        ComplianceResult.id == report_id
-    ).first()
-
-    if not report:
-        db.close()
-        return {"error": "Report not found"}
-
-    db.delete(report)
-    db.commit()
-    db.close()
-
-    return {"message": f"Report {report_id} deleted successfully"}
-
-
-# =========================================================
-# GET - Download PDF Report
-# =========================================================
-@router.get("/reports/{report_id}/download")
-def download_report(report_id: int):
-    db: Session = SessionLocal()
-    report = db.query(ComplianceResult).filter(
-        ComplianceResult.id == report_id
-    ).first()
-    db.close()
-
-    if not report:
-        return {"error": "Report not found"}
-
-    file_name = f"dpdp_report_{report_id}.pdf"
-    file_path = os.path.join(os.getcwd(), file_name)
-
-    doc = SimpleDocTemplate(file_path, pagesize=A4)
-    elements = []
-    styles = getSampleStyleSheet()
-
-    elements.append(Paragraph("DPDP Act 2023 Compliance Report", styles["Title"]))
-    elements.append(Spacer(1, 0.5 * inch))
-
-    elements.append(Paragraph(f"Website: {report.website_url}", styles["Normal"]))
-    elements.append(Spacer(1, 0.2 * inch))
-
-    elements.append(Paragraph(f"Compliance Score: {report.compliance_percentage}%", styles["Normal"]))
-    elements.append(Spacer(1, 0.2 * inch))
-
-    elements.append(Paragraph(f"Risk Level: {report.risk_level}", styles["Normal"]))
-    elements.append(Spacer(1, 0.2 * inch))
-
-    elements.append(Paragraph(f"Generated On: {report.created_at}", styles["Normal"]))
-    elements.append(Spacer(1, 0.5 * inch))
-
-    elements.append(Paragraph(
-        "This report evaluates compliance with the Digital Personal Data Protection Act 2023 "
-        "based on automated website policy analysis.",
-        styles["Normal"]
-    ))
-
-    doc.build(elements)
+    os.remove(chart_path)
+    os.remove(qr_path)
 
     return FileResponse(
-        path=file_path,
-        filename=file_name,
-        media_type="application/pdf"
+        file_path,
+        media_type="application/pdf",
+        filename="AI_DPDP_Report.pdf"
     )
