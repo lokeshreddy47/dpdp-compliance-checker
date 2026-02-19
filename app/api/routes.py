@@ -5,14 +5,21 @@ from sqlalchemy.orm import Session
 from app.database.db import SessionLocal
 from app.models.compliance_model import ComplianceResult
 
+# Disable SSL warnings (Development only)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 router = APIRouter()
 
 
+# ==============================
+# POST - Check Compliance
+# ==============================
 @router.post("/check-compliance")
 def check_compliance(data: dict):
     website_url = data.get("website_url")
+
+    if not website_url:
+        return {"error": "Website URL is required"}
 
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
@@ -30,19 +37,27 @@ def check_compliance(data: dict):
     except Exception as e:
         return {"error": f"Unable to fetch website: {str(e)}"}
 
+    # ==============================
+    # Improved Scoring Logic
+    # ==============================
     score = 0
 
-    if "privacy policy" in content:
+    if "privacy" in content:
         score += 25
+
     if "consent" in content:
         score += 20
-    if "data retention" in content:
-        score += 20
-    if "grievance" in content:
-        score += 15
-    if "personal data" in content:
+
+    if "retention" in content:
         score += 20
 
+    if "grievance" in content or "complaint" in content:
+        score += 15
+
+    if "personal data" in content or "personal information" in content:
+        score += 20
+
+    # Risk Level Logic
     if score >= 70:
         risk_level = "Low Risk"
     elif score >= 40:
@@ -50,6 +65,7 @@ def check_compliance(data: dict):
     else:
         risk_level = "High Risk"
 
+    # Save to Database
     db: Session = SessionLocal()
 
     new_record = ComplianceResult(
@@ -70,6 +86,9 @@ def check_compliance(data: dict):
     }
 
 
+# ==============================
+# GET - All Reports
+# ==============================
 @router.get("/reports")
 def get_reports():
     db: Session = SessionLocal()
@@ -84,6 +103,9 @@ def get_reports():
     return reports
 
 
+# ==============================
+# GET - Report by ID
+# ==============================
 @router.get("/reports/{report_id}")
 def get_report_by_id(report_id: int):
     db: Session = SessionLocal()
@@ -100,6 +122,9 @@ def get_report_by_id(report_id: int):
     return report
 
 
+# ==============================
+# DELETE - Report by ID
+# ==============================
 @router.delete("/reports/{report_id}")
 def delete_report(report_id: int):
     db: Session = SessionLocal()
