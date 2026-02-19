@@ -34,10 +34,17 @@ def check_compliance(data: dict):
     }
 
 
-@router.get("/reports")
-def get_reports():
+@router.get("/reports/{report_id}")
+def get_report_by_id(report_id: int):
     db: Session = SessionLocal()
-    reports = db.query(ComplianceResult).all()
+
+    report = db.query(ComplianceResult).filter(
+        ComplianceResult.id == report_id
+    ).first()
+
     db.close()
 
-    return reports
+    if not report:
+        return {"error": "Report not found"}
+
+    return report
