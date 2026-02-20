@@ -6,7 +6,7 @@ def fetch_privacy_policy(url: str):
 
     try:
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            "User-Agent": "Mozilla/5.0"
         }
 
         response = requests.get(url, headers=headers, timeout=15)
@@ -16,20 +16,25 @@ def fetch_privacy_policy(url: str):
 
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # Remove unwanted elements
+        # Remove junk elements
         for tag in soup(["script", "style", "nav", "footer", "header"]):
             tag.decompose()
 
-        # Extract only paragraph text
-        paragraphs = soup.find_all("p")
-        text = " ".join([p.get_text() for p in paragraphs])
+        # Extract text from paragraphs AND divs
+        paragraphs = soup.find_all(["p", "div"])
 
-        cleaned_text = " ".join(text.split())
+        text_chunks = []
 
-        print("Extracted length:", len(cleaned_text))  # DEBUG
+        for tag in paragraphs:
+            content = tag.get_text(strip=True)
+            if len(content) > 50:
+                text_chunks.append(content)
 
-        if len(cleaned_text) < 1000:
-            print("Content too small.")
+        cleaned_text = " ".join(text_chunks)
+
+        print("Extracted length:", len(cleaned_text))
+
+        if len(cleaned_text) < 500:
             return None
 
         return cleaned_text
