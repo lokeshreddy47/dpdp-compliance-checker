@@ -1,27 +1,46 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from app.database.db import engine, Base
 from app.api.routes import router
+from app.core.logging_config import logger
 
-# Create DB tables
+
+# ==============================
+# Create Database Tables
+# ==============================
 Base.metadata.create_all(bind=engine)
 
+
+# ==============================
+# Create FastAPI App
+# ==============================
 app = FastAPI(
     title="DPDP Act 2023 Compliance Checker",
     version="4.0",
-    description="AI-powered DPDP Act Compliance Analyzer"
+    description="AI-powered semantic DPDP Act compliance analyzer"
 )
 
+
 # ==============================
-# CORS CONFIGURATION
+# Logging Startup
+# ==============================
+logger.info("DPDP Compliance Backend Started Successfully")
+
+
+# ==============================
+# CORS Configuration
 # ==============================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # later we can restrict to React URL
+    allow_origins=["*"],  # Restrict later in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include API routes
+
+# ==============================
+# Include API Routes
+# ==============================
 app.include_router(router)

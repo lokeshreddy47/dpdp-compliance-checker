@@ -1,0 +1,37 @@
+[
+  {
+    "clause_id": 1,
+    "title": "Notice Requirement",
+    "section": "Section 5",
+    "category": "Transparency",
+    "description": "The data fiduciary shall provide clear notice to the data principal before collecting personal data."
+  },
+  {
+    "clause_id": 2,
+    "title": "Consent",
+    "section": "Section 6",
+    "category": "Consent",
+    "description": "Personal data shall be processed only after obtaining free, informed, specific, and unambiguous consent."
+  },
+  {
+    "clause_id": 3,
+    "title": "Data Principal Rights",
+    "section": "Section 11",
+    "category": "Rights",
+    "description": "Data principals have the right to access, correct, update, and erase their personal data."
+  },
+  {
+    "clause_id": 4,
+    "title": "Data Security Safeguards",
+    "section": "Section 8",
+    "category": "Security",
+    "description": "The data fiduciary shall implement reasonable security safeguards to protect personal data."
+  },
+  {
+    "clause_id": 5,
+    "title": "Grievance Redressal",
+    "section": "Section 13",
+    "category": "Governance",
+    "description": "A grievance redressal mechanism shall be established to address complaints of data principals."
+  }
+]
