@@ -1,5 +1,9 @@
 venv/
 __pycache__/
 *.pyc
-.env
-.DS_Store
+*.db
+logs/
+reports/
+node_modules/
+dpdp-frontend/
+dpdp-frontend-1/
