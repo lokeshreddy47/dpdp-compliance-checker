@@ -12,13 +12,13 @@ from app.core.config import settings
 
 
 # ==============================
-# Load Semantic Model (from .env)
+# Load Semantic Model
 # ==============================
 model = SentenceTransformer(settings.MODEL_NAME)
 
 
 # ==============================
-# Load DPDP Clauses from JSON
+# Load DPDP Clauses
 # ==============================
 def load_clauses():
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -41,7 +41,10 @@ def analyze_compliance(policy_text: str):
     clause_names = []
     clause_scores = []
 
-    # Split policy into meaningful sentences
+    # NEW: Explainable AI results
+    explanations = []
+
+    # Split policy into sentences
     sentences = [
         s.strip()
         for s in policy_text.split(".")
@@ -54,7 +57,8 @@ def analyze_compliance(policy_text: str):
             "risk_level": "High Risk",
             "section_analysis": {},
             "missing_clauses": [],
-            "graph_path": ""
+            "graph_path": "",
+            "explanations": []
         }
 
     # Encode policy sentences once
@@ -71,14 +75,25 @@ def analyze_compliance(policy_text: str):
             sentence_embeddings
         )[0]
 
-        max_score = float(np.max(similarities)) * 100
+        # Find best matching sentence
+        best_index = int(np.argmax(similarities))
+        best_sentence = sentences[best_index]
+
+        max_score = float(similarities[best_index]) * 100
         final_score = round(max_score, 2)
 
         clause_names.append(clause_title)
         clause_scores.append(final_score)
         total_score += final_score
 
-        # Use threshold from .env
+        # Explainable AI Output
+        explanations.append({
+            "dpdp_clause": clause_title,
+            "policy_sentence": best_sentence,
+            "similarity_score": final_score
+        })
+
+        # Threshold check
         if final_score >= settings.SIMILARITY_THRESHOLD:
             results[clause_title] = {
                 "similarity_score": final_score,
@@ -126,7 +141,8 @@ def analyze_compliance(policy_text: str):
         "risk_level": risk,
         "section_analysis": results,
         "missing_clauses": missing,
-        "graph_path": graph_path
+        "graph_path": graph_path,
+        "explanations": explanations
     }
 
 
