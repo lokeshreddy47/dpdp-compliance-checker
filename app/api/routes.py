@@ -1,32 +1,75 @@
 from fastapi import APIRouter, Form, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
+
 from app.database.db import get_db
 from app.models.compliance_model import ComplianceResult
 from app.services.scoring_engine import analyze_compliance, generate_recommendations
 from app.services.report_generator import generate_pdf_report
 from app.services.crawler import fetch_privacy_policy
+
 import json
 import os
+import logging
+
+
+# ==============================
+# Logging Setup
+# ==============================
+
+if not os.path.exists("logs"):
+    os.makedirs("logs")
+
+logging.basicConfig(
+    filename="logs/compliance.log",
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 router = APIRouter()
 
-@router.post("/check-compliance/")
+LAST_REPORT_PATH = None
+
+
+# ==============================
+# Compliance Check Endpoint
+# ==============================
+
+@router.post(
+    "/check-compliance/",
+    summary="Analyze website privacy policy",
+    description="Fetches a website privacy policy, analyzes it using AI, checks compliance with DPDP clauses, and generates a PDF report."
+)
 def check_compliance(
     website_url: str = Form(...),
     db: Session = Depends(get_db)
 ):
 
+    global LAST_REPORT_PATH
+
+    logging.info(f"Starting compliance analysis for: {website_url}")
+
     policy_text = fetch_privacy_policy(website_url)
 
     if not policy_text:
-        raise HTTPException(status_code=400, detail="Unable to fetch privacy content.")
+        logging.error("Failed to fetch privacy policy content")
+        raise HTTPException(
+            status_code=400,
+            detail="Unable to fetch privacy content."
+        )
 
+    logging.info("Privacy policy fetched successfully")
+
+    # Run AI compliance analysis
     result = analyze_compliance(policy_text)
+
+    logging.info(f"Compliance score calculated: {result['overall_score']}")
+
+    # Generate recommendations
     recommendations = generate_recommendations(result)
     result["recommendations"] = recommendations
 
-    # Save to DB
+    # Save analysis to database
     db_record = ComplianceResult(
         website_url=website_url,
         compliance_percentage=result["overall_score"],
@@ -39,13 +82,58 @@ def check_compliance(
     db.commit()
     db.refresh(db_record)
 
+    logging.info("Compliance result saved to database")
+
+    # Generate PDF report
     pdf_path = generate_pdf_report(result, website_url)
 
-    if os.path.exists(pdf_path):
+    if not os.path.exists(pdf_path):
+        logging.error("PDF generation failed")
+        raise HTTPException(
+            status_code=500,
+            detail="PDF generation failed."
+        )
+
+    LAST_REPORT_PATH = pdf_path
+
+    logging.info("PDF compliance report generated")
+
+    return {
+        "website_url": website_url,
+        "compliance_score": result["overall_score"],
+        "risk_level": result["risk_level"],
+        "missing_clauses": result["missing_clauses"],
+        "recommendations": recommendations,
+        "report_download_endpoint": "/download-report"
+    }
+
+
+# ==============================
+# Download PDF Report
+# ==============================
+
+@router.get(
+    "/download-report",
+    summary="Download compliance report",
+    description="Downloads the last generated DPDP compliance PDF report."
+)
+def download_report():
+
+    global LAST_REPORT_PATH
+
+    if LAST_REPORT_PATH and os.path.exists(LAST_REPORT_PATH):
+
+        logging.info("PDF report downloaded")
+
         return FileResponse(
-            pdf_path,
+            LAST_REPORT_PATH,
             media_type="application/pdf",
             filename="dpdp_compliance_report.pdf"
         )
 
-    raise HTTPException(status_code=500, detail="PDF generation failed.")
+    logging.error("Report not found")
+
+    raise HTTPException(
+        status_code=404,
+        detail="Report not found."
+    )
