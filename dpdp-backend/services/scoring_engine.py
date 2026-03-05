@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from app.core.config import settings
+from core.config import settings
 
 
 # ==============================
@@ -21,6 +21,7 @@ model = SentenceTransformer(settings.MODEL_NAME)
 # Load DPDP Clauses
 # ==============================
 def load_clauses():
+
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     file_path = os.path.join(base_dir, "data", "dpdp_clauses.json")
 
@@ -29,7 +30,7 @@ def load_clauses():
 
 
 # ==============================
-# Analyze Compliance
+# AI Compliance Analysis
 # ==============================
 def analyze_compliance(policy_text: str):
 
@@ -40,11 +41,8 @@ def analyze_compliance(policy_text: str):
     total_score = 0
     clause_names = []
     clause_scores = []
-
-    # NEW: Explainable AI results
     explanations = []
 
-    # Split policy into sentences
     sentences = [
         s.strip()
         for s in policy_text.split(".")
@@ -57,16 +55,20 @@ def analyze_compliance(policy_text: str):
             "risk_level": "High Risk",
             "section_analysis": {},
             "missing_clauses": [],
+            "recommendations": [],
             "graph_path": "",
             "explanations": []
         }
 
-    # Encode policy sentences once
+    # Encode policy sentences
     sentence_embeddings = model.encode(sentences)
 
     for clause in clauses:
+
         clause_title = clause["title"]
         clause_text = clause["description"]
+        clause_section = clause["section"]
+        clause_category = clause["category"]
 
         clause_embedding = model.encode([clause_text])
 
@@ -75,42 +77,50 @@ def analyze_compliance(policy_text: str):
             sentence_embeddings
         )[0]
 
-        # Find best matching sentence
         best_index = int(np.argmax(similarities))
         best_sentence = sentences[best_index]
 
-        max_score = float(similarities[best_index]) * 100
-        final_score = round(max_score, 2)
+        similarity_score = float(similarities[best_index]) * 100
+        final_score = round(similarity_score, 2)
 
         clause_names.append(clause_title)
         clause_scores.append(final_score)
+
         total_score += final_score
 
-        # Explainable AI Output
         explanations.append({
-            "dpdp_clause": clause_title,
+            "clause_title": clause_title,
+            "section": clause_section,
+            "category": clause_category,
             "policy_sentence": best_sentence,
             "similarity_score": final_score
         })
 
-        # Threshold check
         if final_score >= settings.SIMILARITY_THRESHOLD:
+
             results[clause_title] = {
+                "section": clause_section,
+                "category": clause_category,
                 "similarity_score": final_score,
-                "status": "Matched",
-                "matched_clause_text": clause_text
+                "status": "Matched"
             }
+
         else:
+
             missing.append(clause_title)
+
             results[clause_title] = {
+                "section": clause_section,
+                "category": clause_category,
                 "similarity_score": final_score,
-                "status": "Missing",
-                "matched_clause_text": None
+                "status": "Missing"
             }
 
     overall_score = round(total_score / len(clauses), 2)
 
+    # ==============================
     # Risk Classification
+    # ==============================
     if overall_score >= 75:
         risk = "Low Risk"
     elif overall_score >= 45:
@@ -119,17 +129,32 @@ def analyze_compliance(policy_text: str):
         risk = "High Risk"
 
     # ==============================
-    # Generate Graph
+    # Generate Recommendations
+    # ==============================
+    recommendations = []
+
+    if missing:
+        for clause in missing:
+            recommendations.append(
+                f"The privacy policy should include a section for '{clause}' to improve DPDP compliance."
+            )
+    else:
+        recommendations.append(
+            "The privacy policy appears well aligned with DPDP Act 2023 requirements."
+        )
+
+    # ==============================
+    # Generate Compliance Graph
     # ==============================
     if not os.path.exists("reports"):
         os.makedirs("reports")
 
     graph_path = "reports/compliance_chart.png"
 
-    plt.figure()
+    plt.figure(figsize=(10, 5))
     plt.bar(clause_names, clause_scores)
     plt.xlabel("DPDP Clauses")
-    plt.ylabel("Semantic Similarity Score (%)")
+    plt.ylabel("Similarity Score (%)")
     plt.title("DPDP Compliance Clause Analysis")
     plt.xticks(rotation=45)
     plt.tight_layout()
@@ -141,26 +166,7 @@ def analyze_compliance(policy_text: str):
         "risk_level": risk,
         "section_analysis": results,
         "missing_clauses": missing,
+        "recommendations": recommendations,
         "graph_path": graph_path,
         "explanations": explanations
     }
-
-
-# ==============================
-# Generate Recommendations
-# ==============================
-def generate_recommendations(result: dict):
-
-    recommendations = []
-
-    if result["missing_clauses"]:
-        for clause in result["missing_clauses"]:
-            recommendations.append(
-                f"The policy lacks sufficient coverage for '{clause}'. Consider strengthening this section."
-            )
-    else:
-        recommendations.append(
-            "The privacy policy demonstrates strong alignment with DPDP Act 2023 provisions."
-        )
-
-    return recommendations

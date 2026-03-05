@@ -1,28 +1,22 @@
-import spacy
-import spacy
+def analyze_text(text):
 
-nlp = spacy.load("en_core_web_sm")
+    text = text.lower()
 
-DPDP_REQUIREMENTS = {
-    "consent": ["consent", "agree"],
-    "data_retention": ["data retention", "retain"],
-    "user_rights": ["right to delete", "right to correct"],
-    "grievance_officer": ["grievance officer"],
-    "purpose_limitation": ["purpose of processing"],
-    "data_protection": ["security", "encryption"]
-}
-
-def analyze_text(text: str):
-    found = []
-    missing = []
-
-    for category, keywords in DPDP_REQUIREMENTS.items():
-        if any(keyword in text for keyword in keywords):
-            found.append(category)
-        else:
-            missing.append(category)
-
-    return {
-        "found_categories": found,
-        "missing_categories": missing
+    clauses = {
+        "Data Collection Disclosure": ["collect", "data", "information"],
+        "User Consent Clause": ["consent", "permission", "agree"],
+        "Purpose Limitation": ["purpose", "use", "service"],
+        "Data Retention Policy": ["retain", "store", "retention"],
+        "User Data Deletion Rights": ["delete", "remove", "erase"]
     }
+
+    detected = []
+
+    for clause, keywords in clauses.items():
+
+        for word in keywords:
+            if word in text:
+                detected.append(clause)
+                break
+
+    return detected
