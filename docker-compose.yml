@@ -3,11 +3,15 @@ version: "3"
 services:
 
   backend:
-    build: ./dpdp-backend
+    build:
+      context: ./dpdp-backend
+      dockerfile: Dockerfile
     ports:
       - "5000:5000"
 
   frontend:
-    build: ./dpdp-frontend
+    build:
+      context: ./dpdp-frontend
+      dockerfile: Dockerfile
     ports:
       - "3000:3000"
