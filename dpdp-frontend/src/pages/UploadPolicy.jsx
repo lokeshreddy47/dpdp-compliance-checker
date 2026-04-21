@@ -80,7 +80,7 @@ function UploadPolicy({ user }) {
 
       {/* Main Content */}
 
-      <div className="ml-64 p-10 w-full bg-gray-100 min-h-screen">
+      <div className="ml-64 p-10 w-full bg-gray-100 dark:bg-gray-900 dark:text-gray-100 min-h-screen">
 
         <h1 className="text-3xl font-bold mb-8">
           DPDP Act 2023 Compliance Checker
@@ -134,8 +134,8 @@ function UploadPolicy({ user }) {
         </div>
 
         {/* Loading */}
-        {loading && (
-          <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 mb-6 rounded">
+          {loading && (
+          <div className="bg-blue-100 dark:bg-blue-900 border-l-4 border-blue-500 dark:border-blue-300 text-blue-700 dark:text-blue-200 p-4 mb-6 rounded">
             <div className="flex items-center">
               <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-500 border-t-transparent mr-3"></div>
               AI analyzing privacy policy... Please wait
@@ -145,7 +145,7 @@ function UploadPolicy({ user }) {
 
         {/* Error */}
         {error && (
-          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded">
+          <div className="bg-red-100 dark:bg-red-900 border-l-4 border-red-500 dark:border-red-300 text-red-700 dark:text-red-200 p-4 mb-6 rounded">
             <p className="font-semibold">Error</p>
             <p>{error}</p>
           </div>
@@ -172,19 +172,19 @@ function UploadPolicy({ user }) {
               </p>
 
               {result.risk_level === "Low Risk" && (
-                <div className="bg-gradient-to-r from-green-100 to-emerald-100 border-l-4 border-green-500 text-green-700 p-3 rounded w-48">
+                <div className="bg-gradient-to-r from-green-100 to-emerald-100 dark:from-emerald-900 border-l-4 border-green-500 dark:border-green-300 text-green-700 dark:text-green-200 p-3 rounded w-48">
                   Low Risk
                 </div>
               )}
 
               {result.risk_level === "Medium Risk" && (
-                <div className="bg-gradient-to-r from-yellow-100 to-amber-100 border-l-4 border-yellow-500 text-yellow-700 p-3 rounded w-48">
+                <div className="bg-gradient-to-r from-yellow-100 to-amber-100 dark:from-amber-900 border-l-4 border-yellow-500 dark:border-yellow-300 text-yellow-700 dark:text-yellow-200 p-3 rounded w-48">
                   Medium Risk
                 </div>
               )}
 
               {result.risk_level === "High Risk" && (
-                <div className="bg-gradient-to-r from-red-100 to-rose-100 border-l-4 border-red-500 text-red-700 p-3 rounded w-48">
+                <div className="bg-gradient-to-r from-red-100 to-rose-100 dark:from-rose-900 border-l-4 border-red-500 dark:border-red-300 text-red-700 dark:text-red-200 p-3 rounded w-48">
                   High Risk
                 </div>
               )}
@@ -201,7 +201,7 @@ function UploadPolicy({ user }) {
 
               {result.missing_clauses.map((clause, index) => (
 
-                <li key={index}>{clause}</li>
+                <li key={index} className="dark:text-gray-200">{clause}</li>
 
               ))}
 

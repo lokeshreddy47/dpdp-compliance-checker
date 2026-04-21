@@ -5,14 +5,27 @@ function Navbar({ user, onLogout }) {
 
   const [darkMode, setDarkMode] = useState(false);
 
+  // initialize theme from localStorage or system preference
   useEffect(() => {
+    const saved = localStorage.getItem("theme");
+    if (saved === "dark") {
+      setDarkMode(true);
+    } else if (saved === "light") {
+      setDarkMode(false);
+    } else if (window.matchMedia) {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setDarkMode(prefersDark);
+    }
+  }, []);
 
+  useEffect(() => {
     if (darkMode) {
       document.body.classList.add("dark");
+      localStorage.setItem("theme", "dark");
     } else {
       document.body.classList.remove("dark");
+      localStorage.setItem("theme", "light");
     }
-
   }, [darkMode]);
 
   return (
@@ -49,6 +62,7 @@ function Navbar({ user, onLogout }) {
         {/* Theme Toggle Button */}
         <button
           onClick={() => setDarkMode(!darkMode)}
+          aria-label="Toggle theme"
           className="text-2xl bg-white/10 p-2 rounded-full hover:bg-white/20 transition"
         >
           {darkMode ? "☀️" : "🌙"}

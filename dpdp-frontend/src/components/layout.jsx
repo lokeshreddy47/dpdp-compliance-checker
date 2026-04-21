@@ -13,7 +13,7 @@ function Layout({ children }) {
     <div className="flex min-h-screen">
 
       {/* Sidebar */}
-      <div className="w-64 bg-gray-900 text-white p-6">
+      <div className="w-64 bg-white text-gray-900 dark:bg-gray-900 dark:text-white p-6">
 
         <h1 className="text-xl font-bold mb-8">
           DPDP Checker
