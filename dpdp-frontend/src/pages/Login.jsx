@@ -22,8 +22,8 @@ function Login({ setUser }) {
     }
 
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (!clientId) {
-      console.warn("VITE_GOOGLE_CLIENT_ID not set. Google Sign-In disabled.");
+    if (!clientId || clientId === "YOUR_GOOGLE_OAUTH_CLIENT_ID_HERE.apps.googleusercontent.com") {
+      console.warn("VITE_GOOGLE_CLIENT_ID not set or using placeholder. Google Sign-In disabled.");
       return;
     }
 
@@ -122,8 +122,25 @@ function Login({ setUser }) {
         <h1 className="text-3xl font-bold text-white text-center mb-6">DPDP Compliance Checker</h1>
         <p className="text-gray-300 text-center mb-6">AI Powered Privacy Compliance</p>
 
-        {/* Placeholder where Google will render its button */}
-        <div ref={googleBtnRef} />
+        {/* Show Google button or setup message */}
+        {import.meta.env.VITE_GOOGLE_CLIENT_ID && import.meta.env.VITE_GOOGLE_CLIENT_ID !== "YOUR_GOOGLE_OAUTH_CLIENT_ID_HERE.apps.googleusercontent.com" ? (
+          <div ref={googleBtnRef} />
+        ) : (
+          <div className="text-center">
+            <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-4 mb-4">
+              <p className="text-red-300 text-sm mb-2">⚠️ Google OAuth Not Configured</p>
+              <p className="text-gray-300 text-xs">
+                Please set up your Google Client ID in the .env file to enable login.
+              </p>
+            </div>
+            <button
+              onClick={() => window.open('https://console.cloud.google.com/apis/credentials', '_blank')}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors"
+            >
+              Setup Google OAuth
+            </button>
+          </div>
+        )}
 
         <div className="mt-6 text-center">
           <p className="text-gray-400 text-sm">Secure authentication using Google Identity Services</p>

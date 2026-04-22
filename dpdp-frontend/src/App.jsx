@@ -4,9 +4,9 @@ import { useState, useEffect } from "react";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import UploadPolicy from "./pages/UploadPolicy";
-import Reports from "./pages/Reports";
+import Reports from "./pages/reports";
 import History from "./pages/History";
-import Navbar from "./components/Navbar";
+import Navbar from "./components/navbar";
 
 function App() {
   const [user, setUser] = useState(null);
