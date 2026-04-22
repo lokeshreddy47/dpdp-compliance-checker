@@ -35,10 +35,8 @@ if not os.path.exists("reports"):
 # Serve generated files (charts, reports)
 app.mount("/reports", StaticFiles(directory="reports"), name="reports")
 
-
-@app.get("/")
-def read_root():
-    return {"message": "DPDP Compliance API Running"}
+# Serve frontend static files
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
 
 # ==========================
@@ -140,7 +138,7 @@ def get_reports():
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)    return history
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
 
 
 # ==========================
