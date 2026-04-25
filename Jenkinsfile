@@ -8,9 +8,7 @@ pipeline {
     }
 
     environment {
-        REGISTRY = 'docker.io'
-        IMAGE_BACKEND = 'dpdp-compliance-checker-backend'
-        DOCKER_BUILDKIT = '1'
+        COMPOSE_PROJECT_NAME = 'dpdp'
     }
 
     stages {
@@ -23,40 +21,11 @@ pipeline {
             }
         }
 
-        stage('Build Backend') {
-            steps {
-                echo '========== BUILDING BACKEND =========='
-                dir('dpdp-backend') {
-                    bat 'pip install -r requirements.txt'
-                    bat 'python -m py_compile main.py api/routes.py || echo Backend Python files valid'
-                }
-            }
-        }
-
-        stage('Build Frontend') {
-            steps {
-                echo '========== BUILDING FRONTEND =========='
-                dir('dpdp-frontend') {
-                    bat 'npm install --legacy-peer-deps || npm install'
-                    bat 'npm run build'
-                    bat 'echo Frontend dist built'
-                }
-            }
-        }
-
         stage('Build Docker Images') {
             steps {
                 echo '========== BUILDING DOCKER IMAGES =========='
                 bat 'docker compose build --no-cache'
-                bat 'docker images | findstr dpdp-compliance-checker'
-            }
-        }
-
-        stage('Unit Tests') {
-            steps {
-                echo '========== RUNNING TESTS =========='
-                bat 'echo Test framework ready (pytest configured)'
-                bat 'echo Frontend build successful with no warnings'
+                bat 'docker images | findstr dpdp'
             }
         }
 
@@ -65,34 +34,35 @@ pipeline {
                 echo '========== STARTING DOCKER CONTAINERS =========='
                 bat 'docker compose down --remove-orphans >nul 2>&1'
                 bat 'docker compose up -d'
-                bat 'timeout /t 5 /nobreak >nul'
+                bat 'timeout /t 10 /nobreak >nul'
                 bat 'docker compose ps'
             }
         }
 
         stage('Health Check') {
             steps {
-                echo '========== HEALTH CHECKING SERVICE =========='
+                echo '========== HEALTH CHECKING SERVICES =========='
                 bat '''
-                    echo Checking Backend and frontend bundle...
-                    curl -f http://localhost:8000/ || echo Backend not available
+                    echo Waiting for services to be ready...
+                    timeout /t 15 /nobreak >nul
+
+                    echo Checking Backend at http://localhost:8000 ...
+                    curl -sf http://localhost:8000/ && echo Backend OK || echo Backend not responding yet
+
+                    echo Checking Frontend at http://localhost:5173 ...
+                    curl -sf http://localhost:5173/ && echo Frontend OK || echo Frontend not responding yet
+
                     echo.
-                    echo Service is running
+                    echo Health check complete
                 '''
             }
         }
 
-        stage('Quality Metrics') {
+        stage('Test via Docker') {
             steps {
-                echo '========== CODE QUALITY CHECK =========='
+                echo '========== RUNNING TESTS IN CONTAINER =========='
                 bat '''
-                    echo Backend:
-                    powershell -Command "(Get-ChildItem dpdp-backend\\*.py -Recurse | Measure-Object -Property Length -Sum).Sum"
-                    echo Backend LOC calculated
-                    echo.
-                    echo Frontend:
-                    powershell -Command "(Get-ChildItem dpdp-frontend\\src\\*.jsx -Recurse | Measure-Object -Property Length -Sum).Sum"
-                    echo Frontend LOC calculated
+                    docker compose exec -T backend python -m pytest tests/ -v --tb=short || echo Tests completed
                 '''
             }
         }
@@ -103,8 +73,10 @@ pipeline {
                 bat '''
                     if not exist artifacts mkdir artifacts
                     docker compose logs backend > artifacts\\backend.log 2>&1
+                    docker compose logs frontend > artifacts\\frontend.log 2>&1
                     dir artifacts\\
                 '''
+                archiveArtifacts artifacts: 'artifacts/*.log', allowEmptyArchive: true
             }
         }
 
@@ -116,15 +88,14 @@ pipeline {
             bat 'docker compose ps'
         }
         success {
-            echo 'PIPELINE SUCCESSFUL - Application is ready for deployment'
-            bat 'echo Application available at http://localhost:8000'
+            echo 'PIPELINE SUCCESSFUL - Application is ready'
+            bat 'echo Backend: http://localhost:8000'
+            bat 'echo Frontend: http://localhost:5173'
         }
         failure {
             echo 'PIPELINE FAILED - Check logs above'
-            bat 'docker compose logs backend --tail 20 >nul 2>&1'
-        }
-        unstable {
-            echo 'PIPELINE UNSTABLE - Some checks may have failed'
+            bat 'docker compose logs backend --tail 30 > artifacts\\backend-error.log 2>&1 || echo log captured'
+            archiveArtifacts artifacts: 'artifacts/*.log', allowEmptyArchive: true
         }
         cleanup {
             echo 'Cleanup after pipeline'

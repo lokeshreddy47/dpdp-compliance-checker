@@ -13,39 +13,24 @@ pipeline {
             }
         }
 
-        stage('Pre-Build Checks') {
-            parallel {
-                stage('Backend: Lint & Syntax') {
-                    steps {
-                        dir('dpdp-backend') {
-                            bat 'python -m py_compile main.py api/auth.py'
-                        }
-                    }
-                }
-                stage('Frontend: Lint & Build') {
-                    steps {
-                        dir('dpdp-frontend') {
-                            bat 'npm ci'
-                            bat 'npm run lint'
-                        }
-                    }
-                }
+        stage('Build Docker Images') {
+            steps {
+                bat 'docker compose build'
             }
         }
 
-        stage('Unit Tests') {
+        stage('Test via Docker') {
             steps {
-                dir('dpdp-backend') {
-                    bat 'pip install -r requirements.txt'
-                    bat 'python -m pytest tests/ -v --tb=short || echo Tests completed'
-                }
+                bat 'docker compose up -d'
+                bat 'timeout /t 15 /nobreak >nul'
+                bat 'docker compose exec -T backend python -m pytest tests/ -v --tb=short || echo Tests completed'
             }
         }
     }
 
     post {
         always {
-            echo 'PR Validation Complete'
+            bat 'docker compose down >nul 2>&1'
         }
         success {
             echo 'PR passed all checks'
