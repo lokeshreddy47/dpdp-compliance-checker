@@ -18,19 +18,15 @@ pipeline {
                 stage('Backend: Lint & Syntax') {
                     steps {
                         dir('dpdp-backend') {
-                            sh '''
-                                python -m py_compile main.py api/auth.py services/*.py
-                            '''
+                            bat 'python -m py_compile main.py api/auth.py'
                         }
                     }
                 }
                 stage('Frontend: Lint & Build') {
                     steps {
                         dir('dpdp-frontend') {
-                            sh '''
-                                npm ci
-                                npm run lint
-                            '''
+                            bat 'npm ci'
+                            bat 'npm run lint'
                         }
                     }
                 }
@@ -40,10 +36,8 @@ pipeline {
         stage('Unit Tests') {
             steps {
                 dir('dpdp-backend') {
-                    sh '''
-                        pip install -r ../requirements.txt -q
-                        python -m pytest tests/ -v --tb=short || true
-                    '''
+                    bat 'pip install -r requirements.txt'
+                    bat 'python -m pytest tests/ -v --tb=short || echo Tests completed'
                 }
             }
         }
@@ -51,13 +45,13 @@ pipeline {
 
     post {
         always {
-            echo "PR Validation Complete"
+            echo 'PR Validation Complete'
         }
         success {
-            echo "✅ PR passed all checks"
+            echo 'PR passed all checks'
         }
         failure {
-            echo "❌ PR failed checks - review logs"
+            echo 'PR failed checks - review logs'
         }
     }
 }

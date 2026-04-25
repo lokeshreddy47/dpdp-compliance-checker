@@ -23,21 +23,21 @@ pipeline {
             steps {
                 script {
                     if (params.FORCE_REBUILD) {
-                        sh 'docker compose down -v || true'
-                        sh 'docker compose build --no-cache'
+                        bat 'docker compose down -v >nul 2>&1'
+                        bat 'docker compose build --no-cache'
                     }
-                    sh 'docker compose up -d --build'
-                    sh 'sleep 10'
+                    bat 'docker compose up -d --build'
+                    bat 'timeout /t 10 /nobreak >nul'
                 }
             }
         }
 
         stage('Health Check') {
             steps {
-                sh '''
-                    curl -sf http://localhost:8000/ || exit 1
-                    curl -sf http://localhost:5173/ || exit 1
-                    echo "Deployment successful!"
+                bat '''
+                    curl -sf http://localhost:8000/ || exit /b 1
+                    curl -sf http://localhost:5173/ || exit /b 1
+                    echo Deployment successful!
                 '''
             }
         }
@@ -45,10 +45,10 @@ pipeline {
 
     post {
         always {
-            echo "Deploy pipeline finished"
+            echo 'Deploy pipeline finished'
         }
         failure {
-            sh 'docker compose logs --tail 50 || true'
+            bat 'docker compose logs --tail 50 >nul 2>&1'
         }
     }
 }
