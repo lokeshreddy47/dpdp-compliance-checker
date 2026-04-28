@@ -12,7 +12,12 @@ from bs4 import BeautifulSoup
 from pydantic import BaseModel
 
 from services.scoring_engine import analyze_compliance
+from api.routes import router as compliance_router
+from database.db import engine
+from models.compliance_model import Base as ComplianceBase
 
+# Create database tables
+ComplianceBase.metadata.create_all(bind=engine)
 
 app = FastAPI(title="DPDP Compliance Checker API")
 
@@ -20,12 +25,24 @@ app = FastAPI(title="DPDP Compliance Checker API")
 # Allow React frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+
+# Include compliance router (provides /check-compliance/ and /download-report)
+app.include_router(compliance_router)
 
 # Ensure reports folder exists
 if not os.path.exists("reports"):
@@ -35,10 +52,9 @@ if not os.path.exists("reports"):
 # Serve generated files (charts, reports)
 app.mount("/reports", StaticFiles(directory="reports"), name="reports")
 
-
-@app.get("/")
-def read_root():
-    return {"message": "DPDP Compliance API Running"}
+# Serve frontend static files (only in production)
+if os.path.exists("static"):
+    app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
 
 # ==========================
@@ -140,4 +156,60 @@ def get_reports():
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
+
+# ==========================
+# Alias for history endpoint
+# ==========================
+@app.get("/history/")
+def get_history():
+    """Alias endpoint for /reports-history for frontend compatibility"""
+    reports_file = "reports/report_history.json"
+    
+    if not os.path.exists(reports_file):
+        return []
+    
+    try:
+        with open(reports_file, "r") as f:
+            history = json.load(f)
+        return history
+    except Exception as e:
+        print(f"Error reading history: {e}")
+        return []
+
+
+# ==========================
+# Export compliance history to CSV
+# ==========================
+@app.get("/export-csv/")
+def export_csv():
+    """Export compliance history as CSV file"""
+    import csv
+    from io import StringIO
+    
+    reports_file = "reports/report_history.json"
+    
+    if not os.path.exists(reports_file):
+        return {"error": "No history to export"}
+    
+    try:
+        with open(reports_file, "r") as f:
+            history = json.load(f)
+        
+        # Create CSV content
+        output = StringIO()
+        if history:
+            writer = csv.DictWriter(output, fieldnames=history[0].keys())
+            writer.writeheader()
+            for record in history:
+                writer.writerow(record)
+        
+        csv_content = output.getvalue()
+        
+        return {
+            "filename": f"compliance-history-{datetime.now().strftime('%Y-%m-%d')}.csv",
+            "content": csv_content
+        }
+    except Exception as e:
+        return {"error": f"Failed to export CSV: {str(e)}"}

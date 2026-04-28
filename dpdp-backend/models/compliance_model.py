@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, Text, Float
 from datetime import datetime
-from app.database.db import Base
+from database.db import Base
 
 
 class ComplianceResult(Base):
