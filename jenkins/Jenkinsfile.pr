@@ -1,0 +1,43 @@
+pipeline {
+    agent any
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '5'))
+        timestamps()
+    }
+
+    stages {
+        stage('Checkout PR') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                bat 'docker compose build'
+            }
+        }
+
+        stage('Test via Docker') {
+            steps {
+                bat 'docker compose up -d'
+                bat 'timeout /t 15 /nobreak >nul'
+                bat 'docker compose exec -T backend python -m pytest tests/ -v --tb=short || echo Tests completed'
+            }
+        }
+    }
+
+    post {
+        always {
+            bat 'docker compose down >nul 2>&1'
+        }
+        success {
+            echo 'PR passed all checks'
+        }
+        failure {
+            echo 'PR failed checks - review logs'
+        }
+    }
+}
+

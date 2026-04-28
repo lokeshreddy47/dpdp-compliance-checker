@@ -1,0 +1,55 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'BACKEND_TAG', defaultValue: 'latest', description: 'Backend Docker image tag')
+        string(name: 'FRONTEND_TAG', defaultValue: 'latest', description: 'Frontend Docker image tag')
+        booleanParam(name: 'FORCE_REBUILD', defaultValue: false, description: 'Force rebuild images from scratch')
+    }
+
+    environment {
+        BACKEND_IMAGE  = 'dpdp-compliance-checker-backend'
+        FRONTEND_IMAGE = 'dpdp-compliance-checker-frontend'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                script {
+                    if (params.FORCE_REBUILD) {
+                        bat 'docker compose down -v >nul 2>&1'
+                        bat 'docker compose build --no-cache'
+                    }
+                    bat 'docker compose up -d --build'
+                    bat 'timeout /t 10 /nobreak >nul'
+                }
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                bat '''
+                    curl -sf http://localhost:8000/ || exit /b 1
+                    curl -sf http://localhost:5173/ || exit /b 1
+                    echo Deployment successful!
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Deploy pipeline finished'
+        }
+        failure {
+            bat 'docker compose logs --tail 50 >nul 2>&1'
+        }
+    }
+}
+

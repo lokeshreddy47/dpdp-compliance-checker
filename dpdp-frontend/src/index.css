@@ -1,0 +1,144 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.dark {
+  background-color: #0f172a;
+  color: white;
+}
+
+/* Smooth transition */
+body {
+  transition: background 0.4s ease, color 0.4s ease;
+}
+
+/* LIGHT THEME */
+body {
+  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+  color: #0f172a;
+  min-height: 100vh;
+}
+
+/* Premium Glass Effect */
+.glass {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+}
+
+/* Dark mode glass variant */
+.dark .glass {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  box-shadow: none;
+}
+
+.glass-hover {
+  transition: all 0.3s ease;
+}
+
+.glass-hover:hover {
+  background: rgba(255, 255, 255, 1);
+  box-shadow: 0 12px 48px rgba(31, 38, 135, 0.5);
+  transform: translateY(-2px);
+}
+
+/* Loading Spinner */
+.spinner {
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top: 4px solid #3498db;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Gaming Theme Animations */
+@keyframes blob {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(20px, -20px) scale(1.1); }
+  50% { transform: translate(-20px, 20px) scale(0.9); }
+  75% { transform: translate(20px, 20px) scale(1.05); }
+}
+
+.animate-blob {
+  animation: blob 7s infinite;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+  animation-delay: 4s;
+}
+
+/* Neon Glow Effects */
+.neon-glow {
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.6), 0 0 40px rgba(138, 43, 226, 0.4);
+}
+
+.neon-glow-pink {
+  box-shadow: 0 0 20px rgba(255, 0, 127, 0.6), 0 0 40px rgba(255, 0, 255, 0.4);
+}
+
+.neon-glow-green {
+  box-shadow: 0 0 20px rgba(0, 255, 127, 0.6), 0 0 40px rgba(0, 255, 0, 0.4);
+}
+
+/* Gaming Glass Effect */
+.glass-gaming {
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* DARK AI THEME */
+
+body.dark{
+  background: linear-gradient(
+      135deg,
+      #020617,
+      #0f172a,
+      #020617
+  );
+
+  color: #e2e8f0;
+}
+
+
+/* Cards */
+
+body.dark .bg-white{
+  background: #0f172a;
+  color: #e2e8f0;
+  border: 1px solid #1e293b;
+}
+
+
+/* Inputs */
+
+body.dark input{
+  background: #020617;
+  border: 1px solid #334155;
+  color: white;
+}
+
+
+/* Buttons */
+
+body.dark button{
+  transition: 0.3s;
+}
+
+body.dark button:hover{
+  transform: scale(1.03);
+}
